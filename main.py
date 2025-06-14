@@ -1,9 +1,9 @@
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List
 import joblib
 import pandas as pd
+import os
 
 class NurseResponse(BaseModel):
     NurseID: int
@@ -25,7 +25,18 @@ app = FastAPI(title="نظام ترشيح الممرضين")
 @app.get("/nurses/{city}", response_model=List[NurseResponse])
 async def get_nurses_by_city(city: str):
     try:
+        # تأكد من وجود الملف
+        print("📁 الملفات الحالية:", os.listdir())
+
+        # تحميل البيانات
         df = joblib.load("nurse_data.pkl")
+
+        # التأكد من الأعمدة
+        expected_columns = {"City", "Score"}
+        if not expected_columns.issubset(df.columns):
+            raise HTTPException(status_code=500, detail="⚠️ الأعمدة المطلوبة غير موجودة في البيانات.")
+
+        # تنظيف المدينة
         city_normalized = city.strip().lower()
         df = df[df['City'].notna()].copy()
         df["City_clean"] = df["City"].astype(str).str.strip().str.lower()
@@ -37,6 +48,6 @@ async def get_nurses_by_city(city: str):
         return filtered.drop(columns=["City_clean"]).to_dict("records")
 
     except FileNotFoundError:
-        raise HTTPException(status_code=500, detail="⚠️ لم يتم العثور على ملف البيانات.")
+        raise HTTPException(status_code=500, detail="⚠️ ملف البيانات غير موجود.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"⚠️ خطأ داخلي في السيرفر: {str(e)}")
